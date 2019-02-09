@@ -82,19 +82,19 @@ range' (x :: xs) = x :: (succ <$> range' xs)
 
 
 
-plusInverseMinus : (n : Nat) -> (m : Nat) -> {auto smaller: LTE n m} -> m = plus n (m - n)
-plusInverseMinus n m = ?plusMinusSmaller_rhs
+-- plusInverseMinus : (n : Nat) -> (m : Nat) -> {auto smaller: LTE n m} -> m = plus n (m - n)
+-- plusInverseMinus n m = ?plusMinusSmaller_rhs
 
-weakenTo : {n : Nat} -> (m : Nat) -> (Fin n) -> {auto smaller: LTE n m} -> Fin m
-weakenTo {n} m x = rewrite plusInverseMinus n m in weakenN (m - n) x
+-- weakenTo : {n : Nat} -> (m : Nat) -> (Fin n) -> {auto smaller: LTE n m} -> Fin m
+-- weakenTo {n} m x = rewrite plusInverseMinus n m in weakenN (m - n) x
 
--- Tensor range
-range : {rank : Nat} -> {xs : Vect (S rank) Nat} -> Tensor xs (Fin (product xs))
-range {rank = Z} {xs = (y :: [])} = rewrite multOneRightNeutral y
-                                    in (TS (TZ <$> Vect.range {len=y}))
-range {rank = (S k)} {xs = (y :: ys)} = let other = range {rank=k} {xs=ys}
-                                            otherWeakened = weakenTo ((product ys) * y) <$> other
-                                        in ?range_rhs_1
+---- Tensor range
+--range : {rank : Nat} -> {xs : Vect (S rank) Nat} -> Tensor xs (Fin (product xs))
+--range {rank = Z} {xs = (y :: [])} = rewrite multOneRightNeutral y
+--                                    in (TS (TZ <$> Vect.range {len=y}))
+--range {rank = (S k)} {xs = (y :: ys)} = let other = range {rank=k} {xs=ys}
+--                                            otherWeakened = weakenTo ((product ys) * y) <$> other
+--                                        in ?range_rhs_1
 
 
 {-
@@ -177,7 +177,36 @@ we need to sum tensor axes.
 We can do it in a way where we reduce the rank of the tensor by 1 or we keep the tensor rank intact
 
 
+"bij,bjk->bik" can be done in a few steps:
+bij   bjk
+bji   bjk
+
+1. "bij,bjk->bijk"
+2. "bijk->bik"
+
+
+Other:
+1. for "bij" I can create "bj" "i" tensors. For "bjk" I can create "bj" "k" tensors
+2. "bijk" (tensor product )
+3. "bi1k" (sum along the axis)
+4. "bik" (remove the unit axis)
+
 -}
+
+vectorMempty : (ls : Vect n a) -> ls ++ [] = ls
+vectorMempty [] = Refl
+vectorMempty (x :: xs) = rewrite vectorMempty xs in Refl
+
+tensorProduct : Num a => {xs : Vect n Nat} -> {ys : Vect m Nat}
+    -> Tensor xs a -> Tensor ys a -> Tensor (xs ++ ys) a
+tensorProduct (TZ x) b = (x*) <$> b
+tensorProduct (TS []) b = TS []
+tensorProduct (TS (x :: xs)) b = TS (tensorProduct x b :: ?asdf_3)
+
+outerProduct : Num a => Vect n a -> Vect m a -> Vect n (Vect m a)
+outerProduct [] b = []
+outerProduct (x :: xs) b = ((x*) <$> b) :: outerProduct xs b
+
 --sumAxisSize : (xs : Vect rank Nat) -> (i : Fin rank) -> {auto smaller: LTE 1 rank} -> Vect (rank - 1) Nat
 --sumAxisSize {rank = (S Z)} (_ :: ms) FZ = ms
 --sumAxisSize {rank = (S (S k))} (_ :: ms) FZ = ms
