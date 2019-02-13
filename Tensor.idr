@@ -2,6 +2,8 @@ module Main
 
 import Data.Vect
 import Data.Fin
+import NumericImplementations
+
 import TensorProofs
 
 %default total
@@ -63,26 +65,17 @@ replicate : {xs : Vect n Nat} -> a -> Tensor xs a
 replicate {xs = []} x = TZ x
 replicate {xs = (y :: ys)} x = TS (Vect.replicate y (replicate {xs=ys} x))
 
-TensorAlgebra : Type -> Type -> Type
-TensorAlgebra a t = (a -> t, (t -> t -> t, t))
+-- razlika između 'a' i 't'?
+tensorFold : Monoid t => {n : Nat} -> {xs : Vect n Nat}
+    -> (a -> t) -> Tensor xs a -> t
+tensorFold {t} f (TZ x) = f x
+tensorFold {t} f (TS xs) = foldr ((<+>) {ty=t}) (neutral {ty=t}) $ tensorFold f <$> xs
 
---TensorAlgebra' : Type -> (Type -> Type -> Type) -> Type
---TensorAlgebra' a t = (a -> t, Vect n (t x) -> )
+--fmap' : (a -> b) -> Tensor xs a -> Tensor xs b
+--fmap' f = tensorFold {t=?monoidd} ?fmap'_rhs
 
-tensorFold : {n : Nat} -> {xs : Vect n Nat}
-    -> TensorAlgebra a t -> Tensor xs a -> t
-tensorFold (f, _) (TZ x) = f x
-tensorFold alg@(_, (f, i)) (TS xs) = foldr f i $ tensorFold alg <$> xs
-
-fmap' : (a -> b) -> Tensor xs a -> Tensor xs b
-fmap' f = tensorFold (?fmap'_rhs, ?fmap'_rhs2)
-
---tensorSum : Num a => Tensor xs a -> a
---tensorSum (TZ x) = x
---tensorSum (TS xs) = sum $ tensorSum <$> xs
-
-tensorSum : Num a => Tensor xs a -> a
-tensorSum = tensorFold (id, ((+), 0))
+tensorSum : (Monoid a, Num a) => Tensor xs a -> a
+tensorSum = tensorFold {t=a} id
 
 infixl 5 ><
 
@@ -105,8 +98,8 @@ Num a => Num (Tensor xs a) where
     fromInteger {xs} x = replicate {xs=xs} (fromInteger x)
 
 -- this is fmap (*a)?
-scalarMul : Num a => a -> Tensor xs a -> Tensor xs a
-scalarMul a = tensorFold (?abc, ?def)
+--scalarMul : Num a => a -> Tensor xs a -> Tensor xs a
+--scalarMul a = tensorFold (?abc, ?def)
 
 {-
 weakenList : {len : Nat} -> Vect len (Fin n) -> Vect len (Fin (n + len))
