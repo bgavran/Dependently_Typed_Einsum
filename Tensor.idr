@@ -57,21 +57,58 @@ data Tensor : Vect rank Nat -> Type -> Type where
 
 Functor (Tensor xs) where
   map f (TZ x) = TZ (f x)
-  map f (TS xs) = TS (map (map f) xs)
-
-Show a => Show (Tensor xs a) where
-  show (TZ x) = show x
-  show (TS xs) = show xs ++ "\n"
+  map f (TS xs) = TS ((map f) <$> xs)
 
 replicate : {xs : Vect n Nat} -> a -> Tensor xs a
 replicate {xs = []} x = TZ x
 replicate {xs = (y :: ys)} x = TS (Vect.replicate y (replicate {xs=ys} x))
 
-zipWith : (a -> b -> c) -> Tensor xs a -> Tensor xs b -> Tensor xs c
+TensorAlgebra : Type -> Type -> Type
+TensorAlgebra a t = (a -> t, (t -> t -> t, t))
+
+--TensorAlgebra' : Type -> (Type -> Type -> Type) -> Type
+--TensorAlgebra' a t = (a -> t, Vect n (t x) -> )
+
+tensorFold : {n : Nat} -> {xs : Vect n Nat}
+    -> TensorAlgebra a t -> Tensor xs a -> t
+tensorFold (f, _) (TZ x) = f x
+tensorFold alg@(_, (f, i)) (TS xs) = foldr f i $ tensorFold alg <$> xs
+
+fmap' : (a -> b) -> Tensor xs a -> Tensor xs b
+fmap' f = tensorFold (?fmap'_rhs, ?fmap'_rhs2)
+
+--tensorSum : Num a => Tensor xs a -> a
+--tensorSum (TZ x) = x
+--tensorSum (TS xs) = sum $ tensorSum <$> xs
+
+tensorSum : Num a => Tensor xs a -> a
+tensorSum = tensorFold (id, ((+), 0))
+
+infixl 5 ><
+
+(><) : Num a => {xs : Vect n Nat} -> {ys : Vect m Nat}
+-> Tensor xs a -> Tensor ys a -> Tensor (xs ++ ys) a
+(TZ x) >< b = (x*) <$> b
+(TS xs) >< b = TS $ (>< b) <$> xs
+
+Show a => Show (Tensor xs a) where
+    show (TZ x) = show x
+    show (TS xs) = show xs ++ "\n"
+
+zipWith : (a -> b -> c) -> Tensor ns a -> Tensor ns b -> Tensor ns c
 zipWith f (TZ x) (TZ y) = TZ (f x y)
 zipWith f (TS xs) (TS ys) = TS $ Vect.zipWith (zipWith f) xs ys
 
+Num a => Num (Tensor xs a) where
+    (+) = zipWith (+)
+    (*) = zipWith (*)
+    fromInteger {xs} x = replicate {xs=xs} (fromInteger x)
 
+-- this is fmap (*a)?
+scalarMul : Num a => a -> Tensor xs a -> Tensor xs a
+scalarMul a = tensorFold (?abc, ?def)
+
+{-
 weakenList : {len : Nat} -> Vect len (Fin n) -> Vect len (Fin (n + len))
 weakenList {len} xs = weakenN len <$> xs
 
@@ -110,30 +147,20 @@ and
 m
 -}
 
-
-zz : Fin 10
-zz = FS FZ
-
-Num a => Num (Tensor xs a) where
-  (+) = zipWith (+)
-  (*) = zipWith (*)
-  fromInteger {xs} x = replicate {xs=xs} (fromInteger x)
-
+-}
 
 fromArray : {xs : Vect n Nat} -> TensorType xs a -> Tensor xs a
 fromArray {xs = []} y = TZ y
-fromArray {xs = (_ :: _)} y = TS (map fromArray y)
+fromArray {xs = (_ :: _)} y = TS (fromArray <$> y)
 
 toArray : {xs : Vect n Nat} -> Tensor xs a -> TensorType xs a
 toArray (TZ x) = x
-toArray (TS xs) = map toArray xs
+toArray (TS xs) = toArray <$> xs
 
 ConcatType : TensorType (x :: xs) a -> TensorType (y :: xs) a
     -> TensorType ((x + y) :: xs) a
-ConcatType [] [] = []
-ConcatType [] (x :: xs) = x :: xs
-ConcatType (x :: xs) [] = x :: ConcatType xs []
-ConcatType (x :: xs) (y :: ys) = x :: ConcatType xs (y :: ys)
+ConcatType [] ys = ys
+ConcatType (x :: xs) ys = x :: ConcatType xs ys
 
 Concat : Tensor (x :: xs) a -> Tensor (y :: xs) a -> Tensor ((x + y) :: xs) a
 Concat (TS xs) (TS ys) = TS (xs ++ ys)
@@ -154,13 +181,13 @@ dropSize {ms= (x :: xs)} (m :: ms) = ((-) {smaller=smallerThanBound m} x (finToN
 takeTensor : {xs : Vect n Nat} ->
     (inds : Index2 xs) -> Tensor xs a -> Tensor (takeSize {ms=xs} inds) a
 takeTensor {xs = []} Nil (TZ x) = TZ x
-takeTensor {xs = (m :: ms)} (d :: ds) (TS ys) = TS $ map (takeTensor ds) $
+takeTensor {xs = (m :: ms)} (d :: ds) (TS ys) = TS $ (takeTensor ds) <$>
     Vect.take {m=(-) {smaller=smallerThanBound d} m (finToNat d)} (finToNat d) (rewrite SfinPlusMinus d in ys)
 
 dropTensor : {xs : Vect rank Nat} ->
     (inds : Index2 xs) -> Tensor xs a -> Tensor (dropSize {ms=xs} inds) a
 dropTensor {xs = []} [] (TZ x) = TZ x
-dropTensor {xs = (m :: ms)} (d :: ds) (TS ys) = TS $ map (dropTensor {xs=ms} ds) $
+dropTensor {xs = (m :: ms)} (d :: ds) (TS ys) = TS $ (dropTensor {xs=ms} ds) <$>
     Vect.drop (finToNat d) (rewrite extfinPlusMinus d in ys)
 
 --dropTakeTensor : {xs : Vect n Nat} ->
@@ -187,25 +214,16 @@ bji   bjk
 
 Other:
 1. for "bij" I can create "bj" "i" tensors. For "bjk" I can create "bj" "k" tensors
+1. "bijbjk"
 2. "bijk" (tensor product )
 3. "bi1k" (sum along the axis)
 4. "bik" (remove the unit axis)
 
 -}
 
-vectorMempty : (ls : Vect n a) -> ls ++ [] = ls
-vectorMempty [] = Refl
-vectorMempty (x :: xs) = rewrite vectorMempty xs in Refl
-
-tensorProduct : Num a => {xs : Vect n Nat} -> {ys : Vect m Nat}
-    -> Tensor xs a -> Tensor ys a -> Tensor (xs ++ ys) a
-tensorProduct (TZ x) b = (x*) <$> b
-tensorProduct (TS []) b = TS []
-tensorProduct (TS (x :: xs)) b = TS (tensorProduct x b :: ?asdf_3)
-
-outerProduct : Num a => Vect n a -> Vect m a -> Vect n (Vect m a)
-outerProduct [] b = []
-outerProduct (x :: xs) b = ((x*) <$> b) :: outerProduct xs b
+vectorOuterProduct : Num a => Vect n a -> Vect m a -> Vect n (Vect m a)
+vectorOuterProduct [] b = []
+vectorOuterProduct (x :: xs) b = ((x*) <$> b) :: vectorOuterProduct xs b
 
 --sumAxisSize : (xs : Vect rank Nat) -> (i : Fin rank) -> {auto smaller: LTE 1 rank} -> Vect (rank - 1) Nat
 --sumAxisSize {rank = (S Z)} (_ :: ms) FZ = ms
@@ -238,6 +256,7 @@ zeroIndex2 {xs = (_ :: _)} = FZ :: zeroIndex2
 
 
 -- WHY DO WE NEED ALL SLICES here?
+-- to sum the tensor!
 --allSliceIndexes : {rank : Nat} -> {xs : Vect rank Nat} -> Tensor xs a -> (i : Fin rank) -> {auto smaller: LTE 1 rank} -> Vect (index i xs) (Index2 xs)
 --allSliceIndexes {rank = (S h)} {xs=xs} _ i = let e = replicate h Z
 --                                                 --z = map (\j => insertAt i (finToNat j) e) range
@@ -248,11 +267,26 @@ zeroIndex2 {xs = (_ :: _)} = FZ :: zeroIndex2
 --                                 ii = the (Index2 xs) (fromList rr)
 --                                 -- mm = map (flip dropTensor x) ii
 --                             in ?as
-t' : TensorType [3, 4] Double
-t' = [ [1, 2, 3, 4]
-, [4, 5, 6, 7]
-, [8, 9, 10, 11]]
 
+matMul : Tensor [j, i] Double -> Tensor [j, k] Double -> Tensor [i, k] Double
+matMul x y = let p = x >< y in ?matMul_rhs
+
+t1 : Tensor [3] Double
+t1 = fromArray $ [0, 1, 2]
+
+t2 : Tensor [2] Double
+t2 = fromArray $ [10, 20]
+
+t' : TensorType [3, 4] Double
+t' = [ [0, 1, 2, 3]
+     , [4, 5, 6, 7]
+     , [8, 9, 10, 11]]
+
+
+s : Tensor [3, 3] Double
+s = fromArray $ [ [0, 1, 2]
+                , [3, 4, 5]
+                , [6, 7, 8]]
 
 t : Tensor [3, 4] Double
 t = fromArray t'
@@ -263,11 +297,11 @@ t'' = toArray t
 
 w' : TensorType [2, 3, 4] Double
 w' = [[[1, 2, 3, 4],
-    [5, 6, 7, 8],
-    [9, 10, 11, 12]],
-    [[13, 14, 15, 16],
-    [17, 18, 19, 20],
-    [21, 22, 23, 24]]]
+     [5, 6, 7, 8],
+     [9, 10, 11, 12]],
+     [[13, 14, 15, 16],
+     [17, 18, 19, 20],
+     [21, 22, 23, 24]]]
 
 w : Tensor [2, 3, 4] Double
 w = fromArray w'
@@ -308,22 +342,25 @@ r3 = takeTensor [1, 4] $ dropTensor [2, 0] t
 --tt = dropTakeTensor [2, 2] [1, 2] t
 
 
-ff : Vect 10 Int
-ff = fromList [1..10]
-
 sliceVect : (n : Nat) -> (m : Nat) -> Vect (n + m + p) a -> Vect m a
 sliceVect n m {p} = rewrite sym $ plusAssociative n m p in take m . drop n
 
-{-
 
--- machinery for indexing arbitrary tensors
-data Index : Vect n Nat -> Type where
-    Nil  : Index []
-    (::) : Fin m -> Index ms -> Index (m :: ms)
+namespace I
+    -- machinery for indexing arbitrary tensors
+    data Index : Vect n Nat -> Type where
+        Nil  : Index []
+        (::) : Fin m -> Index ms -> Index (m :: ms)
 
 index : Index ms -> Tensor ms a -> a
 index [] (TZ x) = x
 index (x :: xs) (TS ys) = index xs $ Vect.index x ys
+
+esindex : Vect n Char -> Vect n Nat -> (p : Nat ** Vect p (Char, Nat))
+esindex cs ns = let nubcs = nubBy (\a, b => fst a == fst b) $ zip cs ns
+                in nubcs
+
+{-
 
 --index : Index ms -> TensorType ms a -> a
 --index [] a = a
@@ -362,5 +399,3 @@ ESType (ESTensor t fmt) = (TensorType t Double) -> ESType fmt
 ESType (ESComma fmt) = ESType fmt
 ESType (ESResult t) = TensorType t Double
 -}
- 
- 
