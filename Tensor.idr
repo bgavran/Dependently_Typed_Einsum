@@ -6,7 +6,9 @@ import NumericImplementations
 
 import TensorProofs
 
+%access export
 %default total
+
 {-
 GOAL WITH DROPS AND TAKES:
 being able to select certain slices/rows/elements
@@ -159,6 +161,7 @@ Concat : Tensor (x :: xs) a -> Tensor (y :: xs) a -> Tensor ((x + y) :: xs) a
 Concat (TS xs) (TS ys) = TS (xs ++ ys)
 
 
+{-
 data Index2 : Vect n Nat -> Type where
     Nil  : Index2 []
     (::) : Fin (S m) -> Index2 ms -> Index2 (m :: ms)
@@ -376,19 +379,5 @@ esindex cs ns = let nubcs = nubBy (\a, b => fst a == fst b) $ zip cs ns
 --
 
 
-data ESFormat
-    = ESTensor (Vect n Nat) ESFormat
-    | ESComma ESFormat
-    | ESResult (Vect n Nat)
-
-rt : (n ** TensorType [n, 2, n] Double)
-rt = (0 ** [])
-
-ee : ESFormat
-ee = ESTensor ([2, 3]) (ESTensor [3, 5] (ESResult [2, 5]))
-
-ESType : ESFormat -> Type
-ESType (ESTensor t fmt) = (TensorType t Double) -> ESType fmt
-ESType (ESComma fmt) = ESType fmt
-ESType (ESResult t) = TensorType t Double
+-}
 -}
