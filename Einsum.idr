@@ -4,6 +4,7 @@ import Data.Vect
 
 import Tensor
 
+%access export
 %default total
 
 data CharFormat
@@ -19,14 +20,14 @@ format (c::cs) = ESChar c (format cs)
 format [] = ESEnd
 
 data Format
-    = FTensor (Vect n Char) Format
-    | Arrow (Vect n Char)
+    = InputTensor (Vect n Char) Format
+    | OutputTensor (Vect n Char)
 
 fformat : Vect n Char -> CharFormat -> Format
 fformat xs (ESChar c f) = fformat (c::xs) f
-fformat xs (ESComma f) = FTensor (reverse xs) $ fformat [] f
-fformat xs (ESArrow f) = FTensor (reverse xs) $ fformat [] f
-fformat xs ESEnd = Arrow (reverse xs)
+fformat xs (ESComma f) = InputTensor (reverse xs) $ fformat [] f
+fformat xs (ESArrow f) = InputTensor (reverse xs) $ fformat [] f
+fformat xs ESEnd = OutputTensor (reverse xs)
 
 
 ff : Type
@@ -37,22 +38,28 @@ ee = (i : Nat) -> (j : Nat) -> Tensor (the (Vect 2 Nat) [i, j]) Double
 
 gen' : Vect m Nat -> Vect n Char -> Type -> Type
 gen' ys [] a = Tensor ys a
-gen' ys (x :: xs) a = {i : Nat} -> gen' (i::ys) xs a
+gen' ys (x :: xs) a = (i : Nat) -> gen' (i::ys) xs a
 
 gen : Vect n Char -> Type -> Type
 gen = gen' []
 
 interpFormat : Format -> Type -> Type
-interpFormat (FTensor xs f) a = gen xs a -> interpFormat f a
-interpFormat (Arrow xs) a = gen xs a
+interpFormat (InputTensor xs f) a = gen xs a -> interpFormat f a
+interpFormat (OutputTensor xs) a = gen xs a
 
 formatString : String -> Format
 formatString = fformat [] . format . unpack
 
---toFunction : (fmt : Format) -> interpFormat fmt Double
---toFunction (FTensor xs x) = ?toFunction_rhs_1
---toFunction (Arrow xs) = ?toFunction_rhs_2
+VectSubset : (xs : Vect n a) -> (ys : Vect m a) -> {auto smaller: m `LTE` n}-> Type
 
-einsum : (s : String) -> interpFormat (formatString s) a
-einsum s = let f = formatString s
-           in ?einsum_rhs
+contractSpecificAxes : VectSubset xs ys => Tensor xs a -> Tensor ys a
+
+--toFunction : Num a => (a : Type) -> (fmt : Format) -> Tensor ys a -> interpFormat fmt a
+--toFunction a (InputTensor xs f) t = \t' : gen xs a => let t'' = t' in ?asdf
+--toFunction a (OutputTensor xs) t = let outTensor = gen xs a
+--                                       zzz = the outTensor (contractSpecificAxes t)
+--                                       in ?tttt
+
+--einsum : (s : String) -> interpFormat (formatString s) a
+--einsum s = let f = formatString s
+--           in ?einsum_rhs
