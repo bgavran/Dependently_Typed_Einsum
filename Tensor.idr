@@ -60,31 +60,12 @@ data Tensor : Vect rank Nat -> Type -> Type where
     TS : Vect d (Tensor ds a) -> Tensor (d :: ds) a
 
 Functor (Tensor xs) where
-  map f (TZ x) = TZ (f x)
-  map f (TS xs) = TS ((map f) <$> xs)
+    map f (TZ x) = TZ (f x)
+    map f (TS xs) = TS (map (map f) xs)
 
-replicate : {xs : Vect n Nat} -> a -> Tensor xs a
-replicate {xs = []} x = TZ x
-replicate {xs = (y :: ys)} x = TS (Vect.replicate y (replicate {xs=ys} x))
-
--- razlika između 'a' i 't'?
-tensorFold : Monoid t => {n : Nat} -> {xs : Vect n Nat}
-    -> (a -> t) -> Tensor xs a -> t
-tensorFold {t} f (TZ x) = f x
-tensorFold {t} f (TS xs) = foldr ((<+>) {ty=t}) (neutral {ty=t}) $ tensorFold f <$> xs
-
---fmap' : (a -> b) -> Tensor xs a -> Tensor xs b
---fmap' f = tensorFold {t=?monoidd} ?fmap'_rhs
-
-tensorSum : (Monoid a, Num a) => Tensor xs a -> a
-tensorSum = tensorFold {t=a} id
-
-infixl 5 ><
-
-(><) : Num a => {xs : Vect n Nat} -> {ys : Vect m Nat}
--> Tensor xs a -> Tensor ys a -> Tensor (xs ++ ys) a
-(TZ x) >< b = (x*) <$> b
-(TS xs) >< b = TS $ (>< b) <$> xs
+Foldable (Tensor xs) where
+    foldr f n (TZ y) = f y n
+    foldr f n (TS ys) = foldr (flip (foldr f)) n ys
 
 Show a => Show (Tensor xs a) where
     show (TZ x) = show x
@@ -94,14 +75,48 @@ zipWith : (a -> b -> c) -> Tensor ns a -> Tensor ns b -> Tensor ns c
 zipWith f (TZ x) (TZ y) = TZ (f x y)
 zipWith f (TS xs) (TS ys) = TS $ Vect.zipWith (zipWith f) xs ys
 
+infixr 5 &&&
+
+-- since idris' (&&) is lazy by default and it doesn't fit the type
+(&&&) : Bool -> Bool -> Bool
+(&&&) True x  = x
+(&&&) False _ = False
+
+Eq a => Eq (Tensor xs a) where
+    (==) a = foldr (&&&) True . zipWith ((==)) a
+
+
+replicate : {xs : Vect n Nat} -> a -> Tensor xs a
+replicate {xs = []} x = TZ x
+replicate {xs = (y :: ys)} x = TS (Vect.replicate y (replicate {xs=ys} x))
+
 Num a => Num (Tensor xs a) where
     (+) = zipWith (+)
     (*) = zipWith (*)
     fromInteger {xs} x = replicate {xs=xs} (fromInteger x)
 
--- this is fmap (*a)?
+tensorFold : Monoid m => {n : Nat} -> {xs : Vect n Nat}
+    -> (a -> m) -> Tensor xs a -> m
+tensorFold f (TZ x) = f x
+tensorFold f (TS xs) = concatMap (tensorFold f) xs
+
+
+--fmap' : (a -> b) -> Tensor xs a -> Tensor xs b
+--fmap' f = foldr ?ff ?nn
+
+tensorSum : (Monoid a, Num a) => Tensor xs a -> a
+tensorSum = concatMap {m=a} id
+
+infixl 5 ><
+
+(><) : Num a => {xs : Vect n Nat} -> {ys : Vect m Nat}
+-> Tensor xs a -> Tensor ys a -> Tensor (xs ++ ys) a
+(TZ x) >< b = (x*) <$> b
+(TS xs) >< b = TS $ (>< b) <$> xs
+
+--this is fmap (*a)?
 --scalarMul : Num a => a -> Tensor xs a -> Tensor xs a
---scalarMul a = tensorFold (?abc, ?def)
+--scalarMul a t = ?scalarMul_rhs
 
 {-
 weakenList : {len : Nat} -> Vect len (Fin n) -> Vect len (Fin (n + len))

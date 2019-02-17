@@ -4,10 +4,13 @@ import Data.Vect
 import Data.Fin
 
 import Tensor
-import Einsum
+import NumericImplementations
+--import Einsum
 
 %default total
 
+b : Tensor [3] Bool
+b = fromArray $ [True, False, True]
 
 t1 : Tensor [3] Double
 t1 = fromArray $ [0, 1, 2]
