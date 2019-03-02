@@ -7,31 +7,49 @@ import Tensor
 import NumericImplementations
 --import Einsum
 
+%access export
 %default total
 
-b : Tensor [3] Bool
-b = fromArray $ [True, False, True]
 
-t1 : Tensor [3] Double
+Array : Vect rank Nat -> Type -> Type
+Array []        a = a
+Array (m :: ms) a = Vect m (Array ms a)
+
+fromArray : {xs : Vect rank Nat} -> Array xs a -> Tensor xs a
+fromArray {xs = []} y = TZ y
+fromArray {xs = (_ :: _)} y = TS (fromArray <$> y)
+
+toArray : {xs : Vect n Nat} -> Tensor xs a -> Array xs a
+toArray (TZ x) = x
+toArray (TS xs) = toArray <$> xs
+
+b' : Array [3] Bool
+b' = [True, False, True]
+
+b : Tensor' [3] Bool
+b = fromArray  b'
+
+t1 : Tensor' [3] Double
 t1 = fromArray $ [0, 1, 2]
 
-t2 : Tensor [2] Double
-t2 = fromArray $ [10, 20]
-
-t' : TensorType [3, 4] Double
+t' : Array [3, 4] Double
 t' = [ [0, 1, 2, 3]
      , [4, 5, 6, 7]
      , [8, 9, 10, 11]]
 
+t : Tensor' [3, 4] Double
+t = fromArray t'
 
-s : Tensor [3, 3] Double
+c1 : Tensor ['i', 'j'] Double
+c2 : Tensor ['j', 'k'] Double
+
+s : Tensor' [3, 3] Double
 s = fromArray $ [ [0, 1, 2]
                 , [3, 4, 5]
                 , [6, 7, 8]]
 
-t : Tensor [3, 4] Double
-t = fromArray t'
 
+{-
 t'' : TensorType [3, 4] Double
 t'' = toArray t
 
@@ -68,5 +86,7 @@ r2 = takeTensor [1, 4] $ dropTensor [1, 0] t
 
 r3 : Tensor [1, 4] Double
 r3 = takeTensor [1, 4] $ dropTensor [2, 0] t
+
+-}
 
 -}

@@ -49,19 +49,33 @@ dropTensor {ms = (m :: ms)} (x :: xs) t = map (dropTensor {ms=ms} xs) $ drop {m=
 
 -}
 
+infixr 5 &&&
 
+-- since idris' (&&) is lazy by default and it doesn't fit the type for some functions
+(&&&) : Bool -> Bool -> Bool
+(&&&) True x  = x
+(&&&) False _ = False
 
-TensorType : Vect rank Nat -> Type -> Type
-TensorType []        a = a
-TensorType (m :: ms) a = Vect m (TensorType ms a)
-
-data Tensor : Vect rank Nat -> Type -> Type where
+data Tensor : {t : Type} -> Vect rank t -> Type -> Type where
     TZ : a -> Tensor [] a
     TS : Vect d (Tensor ds a) -> Tensor (d :: ds) a
+
+-- specialization to Nat
+Tensor' : Vect rank Nat -> Type -> Type
+Tensor' = Tensor
+
+--Tensor' : Vect rank Nat -> Type -> Type
+--Tensor' xs a = Tensor (the Nat <$> xs) a
+
 
 Functor (Tensor xs) where
     map f (TZ x) = TZ (f x)
     map f (TS xs) = TS (map (map f) xs)
+
+--tensorFold : Monoid m => {n : Nat} -> {xs : Vect n Nat}
+--    -> (a -> m) -> Tensor xs a -> m
+--tensorFold f (TZ x) = f x
+--tensorFold f (TS xs) = concatMap (tensorFold f) xs
 
 Foldable (Tensor xs) where
     foldr f n (TZ y) = f y n
@@ -75,16 +89,8 @@ zipWith : (a -> b -> c) -> Tensor ns a -> Tensor ns b -> Tensor ns c
 zipWith f (TZ x) (TZ y) = TZ (f x y)
 zipWith f (TS xs) (TS ys) = TS $ Vect.zipWith (zipWith f) xs ys
 
-infixr 5 &&&
-
--- since idris' (&&) is lazy by default and it doesn't fit the type
-(&&&) : Bool -> Bool -> Bool
-(&&&) True x  = x
-(&&&) False _ = False
-
 Eq a => Eq (Tensor xs a) where
     (==) a = foldr (&&&) True . zipWith ((==)) a
-
 
 replicate : {xs : Vect n Nat} -> a -> Tensor xs a
 replicate {xs = []} x = TZ x
@@ -93,16 +99,8 @@ replicate {xs = (y :: ys)} x = TS (Vect.replicate y (replicate {xs=ys} x))
 Num a => Num (Tensor xs a) where
     (+) = zipWith (+)
     (*) = zipWith (*)
-    fromInteger {xs} x = replicate {xs=xs} (fromInteger x)
+    -- fromInteger {xs} x = ?fromInteger_rhs -- replicate {xs=xs} (fromInteger x)
 
-tensorFold : Monoid m => {n : Nat} -> {xs : Vect n Nat}
-    -> (a -> m) -> Tensor xs a -> m
-tensorFold f (TZ x) = f x
-tensorFold f (TS xs) = concatMap (tensorFold f) xs
-
-
---fmap' : (a -> b) -> Tensor xs a -> Tensor xs b
---fmap' f = foldr ?ff ?nn
 
 tensorSum : (Monoid a, Num a) => Tensor xs a -> a
 tensorSum = concatMap {m=a} id
@@ -110,13 +108,10 @@ tensorSum = concatMap {m=a} id
 infixl 5 ><
 
 (><) : Num a => {xs : Vect n Nat} -> {ys : Vect m Nat}
--> Tensor xs a -> Tensor ys a -> Tensor (xs ++ ys) a
+    -> Tensor xs a -> Tensor ys a -> Tensor (xs ++ ys) a
 (TZ x) >< b = (x*) <$> b
 (TS xs) >< b = TS $ (>< b) <$> xs
 
---this is fmap (*a)?
---scalarMul : Num a => a -> Tensor xs a -> Tensor xs a
---scalarMul a t = ?scalarMul_rhs
 
 {-
 weakenList : {len : Nat} -> Vect len (Fin n) -> Vect len (Fin (n + len))
@@ -159,20 +154,8 @@ m
 
 -}
 
-fromArray : {xs : Vect n Nat} -> TensorType xs a -> Tensor xs a
-fromArray {xs = []} y = TZ y
-fromArray {xs = (_ :: _)} y = TS (fromArray <$> y)
-
-toArray : {xs : Vect n Nat} -> Tensor xs a -> TensorType xs a
-toArray (TZ x) = x
-toArray (TS xs) = toArray <$> xs
-
-ConcatType : TensorType (x :: xs) a -> TensorType (y :: xs) a
-    -> TensorType ((x + y) :: xs) a
-ConcatType [] ys = ys
-ConcatType (x :: xs) ys = x :: ConcatType xs ys
-
-Concat : Tensor (x :: xs) a -> Tensor (y :: xs) a -> Tensor ((x + y) :: xs) a
+Concat : {x : Nat}
+    -> Tensor (x :: xs) a -> Tensor (y :: xs) a -> Tensor ((x + y) :: xs) a
 Concat (TS xs) (TS ys) = TS (xs ++ ys)
 
 {-
