@@ -1,10 +1,12 @@
 module Einsum
 
 import Data.Vect
+import Data.SortedMap
 
 import NumericImplementations
 import Tensor
 import Examples
+import Misc
 
 %access export
 %default total
@@ -32,13 +34,6 @@ fformat xs (ESComma f) = InputTensor (reverse xs) $ fformat [] f
 fformat xs (ESArrow f) = InputTensor (reverse xs) $ fformat [] f
 fformat xs ESEnd = OutputTensor (reverse xs)
 
-
-ff : Type
-ff = (i : Nat) -> Tensor [i, 3] Double
-
-ee : Type
-ee = (i : Nat) -> (j : Nat) -> Tensor (the (Vect 2 Nat) [i, j]) Double
-
 interpFormat : Type -> Format -> Type
 interpFormat a (InputTensor xs f) = Tensor xs a -> interpFormat a f
 interpFormat a (OutputTensor xs) = Tensor xs a
@@ -50,20 +45,79 @@ formatString = fformat [] . format . unpack
 einsumType : Type -> String -> Type
 einsumType a = interpFormat a . formatString
 
-einsum : (s : String) -> einsumType a s
-einsum s = let ast = formatString s
-           in ?einsum_rhs
+--einsum : (s : String) -> einsumType a s
+--einsum s = let ast = formatString s
+--           in ?einsum_rhs
 
-VectSubset : (xs : Vect n a) -> (ys : Vect m a) -> {auto smaller: m `LTE` n} -> Type
-
-contractSpecificAxes : VectSubset xs ys => Tensor xs a -> Tensor ys a
-
-toFunction : Num a => (fmt : Format) -> Tensor ys a -> interpFormat a fmt
-toFunction (InputTensor xs y) t = ?toFunction_rhs_1
-toFunction (OutputTensor xs) t = ?toFunction_rhs_2
+{-
+"iij" "ij""
+[2, 2, 3]
+[2, 3]
 
 
---toFunction a (InputTensor xs f) t = \t' : gen xs a => let t'' = t' in ?asdf
---toFunction a (OutputTensor xs) t = let outTensor = gen xs a
---                                       zzz = the outTensor (contractSpecificAxes t)
---                                       in ?tttt
+"iij" "ji""
+[2, 2, 3]
+[3, 2]
+
+--------------------
+
+"ij" "j"
+[2, 3]
+[3]
+
+--------------------
+
+"ij" "i""
+[2, 3]
+[2]
+-}
+{-
+no repeated indices
+-}
+
+insertCharNatIntoDict : Char -> Nat -> SortedMap Char Nat -> Maybe (SortedMap Char Nat)
+insertCharNatIntoDict k v dct = case (lookup k dct) of
+    Nothing => Just $ insert k v dct
+    Just val => case (v == val) of
+        True => Just dct
+        False => Nothing
+
+insertIntoDict' : (cs : Vect rank Char) -> (xs : Vect rank Nat) -> SortedMap Char Nat -> Maybe (SortedMap Char Nat)
+insertIntoDict' [] [] dct = Just dct
+insertIntoDict' (c :: cs) (x :: xs) dct = insertCharNatIntoDict c x dct >>= insertIntoDict' cs xs
+
+-- | Inserts a list of tensor names and their sizes into the corresponding dictionary
+-- Fails if there are inconsistencies with the dimension names
+-- "iij" [2, 4, 5] will fail
+insertIntoDict : (cs : Vect rank Char) -> (xs : Vect rank Nat) -> Maybe (SortedMap Char Nat)
+insertIntoDict cs xs = insertIntoDict' cs xs empty
+
+-- | Two ways this can fail:
+-- a) there's a repeated tensor name
+-- b) new index names aren't in the map
+newTensorSize : SortedMap Char Nat -> Vect rank Char -> Maybe (Vect rank Nat)
+newTensorSize dct xs = case equating length (nub $ toList xs) (toList xs) of
+    False => Nothing
+    True => sequence $ flip lookup dct <$> xs
+
+contractSpecificAxes : Monoid a
+    => {c's : Vect rank Nat} -> {t's : Vect newRank Nat}
+    -> (cs : Vect rank Char) -> (ts : Vect newRank Char) -- incoming and outgoing names
+    -> {auto smaller: newRank `LTE` rank}
+    -> Tensor' c's a         -> Tensor' t's a -- incoming and result tensor
+contractSpecificAxes {c's} {t's = []} cs res t = TZ $ concat t
+contractSpecificAxes {c's} {t's = ys} cs res t =
+    let tDct = insertIntoDict cs c's
+        mT's = tDct >>= (\dct => newTensorSize dct res)
+        t's' = fromMaybe ys mT's
+    in ?contractSpecificAxes_rhs_1
+
+-- | cs holds names for each axis in the accumulating tensor
+-- t is the accumulating tensor?
+-- we need to manually keep track of axis names and stuff?
+toFunction : Num a => {ys : Vect rank Nat}
+    -> (fmt : Format) -> (Vect rank Char, Tensor' ys a) -> interpFormat a fmt
+toFunction (InputTensor xs f) (cs, t) = \i => toFunction f (cs, ?toFunction_rhs_1)
+toFunction (OutputTensor xs) (cs, t) = ?toFunction_rhs_2
+
+

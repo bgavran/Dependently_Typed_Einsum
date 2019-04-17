@@ -60,6 +60,7 @@ data Tensor : {t : Type} -> Vect rank t -> Type -> Type where
     TZ : a -> Tensor [] a
     TS : Vect d (Tensor ds a) -> Tensor (d :: ds) a
 
+
 -- specialization to Nat
 Tensor' : Vect rank Nat -> Type -> Type
 Tensor' = Tensor
@@ -94,16 +95,24 @@ Eq a => Eq (Tensor xs a) where
 
 replicate : {xs : Vect n Nat} -> a -> Tensor xs a
 replicate {xs = []} x = TZ x
-replicate {xs = (y :: ys)} x = TS (Vect.replicate y (replicate {xs=ys} x))
+replicate {xs = (y :: ys)} x = TS $ Vect.replicate y (replicate {xs=ys} x)
 
-Num a => Num (Tensor xs a) where
+Semigroup a => Semigroup (Tensor xs a) where
+    (<+>) = zipWith (<+>)
+
+Monoid a => Monoid (Tensor' xs a) where
+    neutral = replicate neutral
+
+Num a => Num (Tensor' xs a) where
     (+) = zipWith (+)
     (*) = zipWith (*)
-    -- fromInteger {xs} x = ?fromInteger_rhs -- replicate {xs=xs} (fromInteger x)
-
-
-tensorSum : (Monoid a, Num a) => Tensor xs a -> a
-tensorSum = concatMap {m=a} id
+    {-
+    fromInteger actually involves creating a Tensor. The only tensors we can create are
+    the ones with Nat as their dimension element type
+    Since it involves creating a Tensor, we need to have Nat in the type and that means
+    we have can't use a general Tensor xs a, but that we need to use Tensor' xs a
+    -}
+    fromInteger = replicate . fromInteger
 
 infixl 5 ><
 
@@ -112,11 +121,6 @@ infixl 5 ><
 (TZ x) >< b = (x*) <$> b
 (TS xs) >< b = TS $ (>< b) <$> xs
 
-
-{-
-weakenList : {len : Nat} -> Vect len (Fin n) -> Vect len (Fin (n + len))
-weakenList {len} xs = weakenN len <$> xs
-
 -- like range, except it adds those values to already an existing vector
 range' : Vect len (Fin (S n)) -> Vect len (Fin (S n))
 range' [] = []
@@ -124,6 +128,7 @@ range' (x :: xs) = x :: (succ <$> range' xs)
 
 
 
+{-
 -- plusInverseMinus : (n : Nat) -> (m : Nat) -> {auto smaller: LTE n m} -> m = plus n (m - n)
 -- plusInverseMinus n m = ?plusMinusSmaller_rhs
 
@@ -158,7 +163,6 @@ Concat : {x : Nat}
     -> Tensor (x :: xs) a -> Tensor (y :: xs) a -> Tensor ((x + y) :: xs) a
 Concat (TS xs) (TS ys) = TS (xs ++ ys)
 
-{-
 data Index2 : Vect n Nat -> Type where
     Nil  : Index2 []
     (::) : Fin (S m) -> Index2 ms -> Index2 (m :: ms)
@@ -183,6 +187,8 @@ dropTensor {xs = []} [] (TZ x) = TZ x
 dropTensor {xs = (m :: ms)} (d :: ds) (TS ys) = TS $ (dropTensor {xs=ms} ds) <$>
     Vect.drop (finToNat d) (rewrite extfinPlusMinus d in ys)
 
+
+{-
 --dropTakeTensor : {xs : Vect n Nat} ->
 --    (dropInds : Index2 xs) ->
 --    (takeInds : Index2 (dropSize {ms=xs} dropInds)) ->
@@ -211,25 +217,34 @@ Other:
 2. "bijk" (tensor product )
 3. "bi1k" (sum along the axis)
 4. "bik" (remove the unit axis)
-
+-}
 -}
 
 vectorOuterProduct : Num a => Vect n a -> Vect m a -> Vect n (Vect m a)
 vectorOuterProduct [] b = []
 vectorOuterProduct (x :: xs) b = ((x*) <$> b) :: vectorOuterProduct xs b
 
---sumAxisSize : (xs : Vect rank Nat) -> (i : Fin rank) -> {auto smaller: LTE 1 rank} -> Vect (rank - 1) Nat
---sumAxisSize {rank = (S Z)} (_ :: ms) FZ = ms
---sumAxisSize {rank = (S (S k))} (_ :: ms) FZ = ms
---sumAxisSize {rank = (S (S k))} (m :: ms) (FS i) = m :: rewrite sym $ minusZeroRight k in sumAxisSize ms i
+--sumAxis : {rank : Nat} -> {xs : Vect rank Nat}
+---> Fin rank ->
+sumAxisSize : (xs : Vect rank Nat) -> (i : Fin rank) -> {auto smaller: LTE 1 rank} -> Vect (rank - 1) Nat
+sumAxisSize {rank = (S Z)} (_ :: ms) FZ = ms
+sumAxisSize {rank = (S (S k))} (_ :: ms) FZ = ms
+sumAxisSize {rank = (S (S k))} (m :: ms) (FS i) = m :: rewrite sym $ minusZeroRight k in sumAxisSize ms i
 
-sumAxisSize : (xs : Vect rank Nat) -> (i : Fin rank) -> Vect rank Nat
-sumAxisSize (_ :: ms) FZ = 1 :: ms
-sumAxisSize (m :: ms) (FS i) = m :: sumAxisSize ms i
+--sumAxisSize : (xs : Vect rank Nat) -> (i : Fin rank) -> Vect rank Nat
+--sumAxisSize (_ :: ms) FZ = 1 :: ms
+--sumAxisSize (m :: ms) (FS i) = m :: sumAxisSize ms i
 
---sumAxis : {rank : Nat} -> {xs : Vect rank Nat} -> Tensor xs a -> (i : Fin rank) -> {auto smaller: LTE 1 rank} -> Tensor (sumAxisSize xs i) a
---sumAxis t i = ?sumAxis_rhs
+sumAxis : {rank : Nat} -> {xs : Vect rank Nat}
+    -> Tensor xs a
+    -> (i : Fin rank)
+    -> {auto smaller: LTE 1 rank}
+    -> Tensor (sumAxisSize xs i) a
+sumAxis {rank = (S Z)} (TS xs) FZ = ?sumAxis_rhs_3
+sumAxis {rank = (S (S k))} t FZ = ?sumAxis_rhs_1
+sumAxis {rank = (S (S k))} t (FS x) = ?sumAxis_rhs_4
 
+{-
 --allSliceIndexes : {rank : Nat} -> {xs : Vect rank Nat} -> Tensor xs a -> (i : Fin rank) -> {auto smaller: LTE 1 rank} -> Vect (index i xs) (Vect rank Nat)
 --allSliceIndexes {rank = (S k)} _ i =
 --    map (\j => insertAt i (finToNat j) (replicate k Z)) range
@@ -300,17 +315,6 @@ esindex cs ns = let nubcs = nubBy (\a, b => fst a == fst b) $ zip cs ns
 --index : Index ms -> TensorType ms a -> a
 --index [] a = a
 --index (x :: xs) a = index xs $ Vect.index x a
-
---einsum : {ns : Vect n Nat}
---    -> {ms : Vect m Nat}
---    -> Vect n Char
---    -> Vect m Char
---    -> {auto prf: LTE m n}
---    -> TensorType ns a
---    -> TensorType ms a
---einsum is os x = let free = filter (`elem` os) is
---                     summ = filter (not . (`elem` os)) is
---                 in ?test
 
 --data Slice : Vect n (Nat, Nat) -> Type where
 --    SNil  : Slice []

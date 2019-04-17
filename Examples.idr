@@ -23,25 +23,20 @@ toArray : {xs : Vect n Nat} -> Tensor xs a -> Array xs a
 toArray (TZ x) = x
 toArray (TS xs) = toArray <$> xs
 
-b' : Array [3] Bool
-b' = [True, False, True]
-
-b : Tensor' [3] Bool
-b = fromArray  b'
-
-t1 : Tensor' [3] Double
-t1 = fromArray $ [0, 1, 2]
-
 t' : Array [3, 4] Double
 t' = [ [0, 1, 2, 3]
      , [4, 5, 6, 7]
      , [8, 9, 10, 11]]
 
-t : Tensor' [3, 4] Double
-t = fromArray t'
+a : Tensor' [2, 3] Double
+a = fromArray $ [ [10, 11, 12]
+                , [100, 110, 120]]
 
-c1 : Tensor ['i', 'j'] Double
-c2 : Tensor ['j', 'k'] Double
+b : Tensor' [3, 4] Double
+b = fromArray t'
+
+--c1 : Tensor ['i', 'j'] Double
+--c2 : Tensor ['j', 'k'] Double
 
 s : Tensor' [3, 3] Double
 s = fromArray $ [ [0, 1, 2]
