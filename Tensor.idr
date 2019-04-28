@@ -1,7 +1,8 @@
-module Main
+module Tensor
 
 import Data.Vect
 import Data.Fin
+import Data.SortedMap
 import NumericImplementations
 
 import TensorProofs
@@ -10,17 +11,18 @@ import TensorProofs
 %default total
 
 {-
-GOAL WITH DROPS AND TAKES:
-being able to select certain slices/rows/elements
+There's several goals here:
+* Implementation of just np.einsum from Python
+* Implementation of generic tensor indexing, slicing setting and getting functionality
+    * Lenses seem like they might be useful here
+    * Zippers also - products in einsum seem just like some variant of smart zippers
 
+Rudimenatary dropping and taking of tensors are implemented. THe ida is to use that functionality for implementing slicing
 
 Tensor product (join) doesn't seem to make sense:
 does the tensor product sum the axes? If so, then what does it do when one tensor has two axis named the same?
 
-products in einsum is just some variant of smart zipping
-
 to sum just some of the axes, multidimensional slicing needs to be implemented
-
 
 if tensortype is defined like it is right now (not a dataype), tensor creation becomes incredibly simple.
 but everything else becomes harder?
@@ -49,25 +51,67 @@ dropTensor {ms = (m :: ms)} (x :: xs) t = map (dropTensor {ms=ms} xs) $ drop {m=
 
 -}
 
-infixr 5 &&&
-
--- since idris' (&&) is lazy by default and it doesn't fit the type for some functions
-(&&&) : Bool -> Bool -> Bool
-(&&&) True x  = x
-(&&&) False _ = False
-
 data Tensor : {t : Type} -> Vect rank t -> Type -> Type where
     TZ : a -> Tensor [] a
     TS : Vect d (Tensor ds a) -> Tensor (d :: ds) a
-
 
 -- specialization to Nat
 Tensor' : Vect rank Nat -> Type -> Type
 Tensor' = Tensor
 
---Tensor' : Vect rank Nat -> Type -> Type
---Tensor' xs a = Tensor (the Nat <$> xs) a
+record Tensor2 (mcs : SortedMap Char Nat) (a : Type) where
+    constructor MkTensor
+    tensor2 : Tensor' (fromList $ values mcs) a
 
+    --i : keys mcs ->
+
+--index2 : (Char, Fin s) -> Tensor2 ms a -> Tensor ns a
+--index2 (a, b) y = ?index2_rhs_1
+
+-- machinery for indexing tensors
+data Index : Vect n Nat -> Type where
+    Nil  : Index []
+    (::) : Fin m -> Index ms -> Index (m :: ms)
+
+index' : Fin len -> Tensor' (len :: ls) a -> Tensor' ls a
+index' l (TS xs) = Vect.index l xs
+
+--map' : Functor f => Fin len -> (a -> b) -> f a -
+
+index : Index ms -> Tensor' ms a -> a
+index [] (TZ x) = x
+index (x :: xs) t = index xs $ index' x t
+
+f : (xs : Vect (S n) Nat) -> (i : Fin (S n)) -> Fin (index i xs) -> Nat
+f _ i x = (finToNat i) + (finToNat x)
+
+xs' : Vect 3 Nat
+xs' = [0, 1, 2]
+
+fff : Elem 1 [3,1,1]
+fff = There Here
+
+{-
+
+1 [2, 3, 5] (n \in {0, 1, 2})
+ist 1 [2, 3, 5]
+2 :: ist 0 [3, 5]
+-}
+--indexSliceType : Fin (S k) -> Vect (S k) Nat -> Vect k Nat
+--indexSliceType FZ (_ :: xs) = xs
+--indexSliceType (FS i) (x :: xs) = let xx = indexSliceType i xs
+--                                  in ?indexSliceType_rhs_1
+
+indexNthLevel : {xs : Vect (S r) Nat}
+    -> (e : Elem x xs) -> Fin x -> Tensor xs a -> Tensor (dropElem xs e) a
+indexNthLevel Here i (TS ys) = index i ys
+indexNthLevel {r = S k} (There later) i (TS ys) = TS $ indexNthLevel later i <$> ys
+
+-- | [2, 3, 5] [1, 0, 2]
+--permuteAxes : {xs : Vect rank Nat}
+--    -> Tensor xs a ->
+--    -> (ys : Vect rank Nat)
+--    ->
 
 Functor (Tensor xs) where
     map f (TZ x) = TZ (f x)
@@ -86,12 +130,16 @@ Show a => Show (Tensor xs a) where
     show (TZ x) = show x
     show (TS xs) = show xs ++ "\n"
 
+
 zipWith : (a -> b -> c) -> Tensor ns a -> Tensor ns b -> Tensor ns c
 zipWith f (TZ x) (TZ y) = TZ (f x y)
 zipWith f (TS xs) (TS ys) = TS $ Vect.zipWith (zipWith f) xs ys
 
+zip : Tensor xs a -> Tensor xs b -> Tensor xs (a, b)
+zip = zipWith MkPair
+
 Eq a => Eq (Tensor xs a) where
-    (==) a = foldr (&&&) True . zipWith ((==)) a
+    x == y = all (uncurry (==)) $ zip x y
 
 replicate : {xs : Vect n Nat} -> a -> Tensor xs a
 replicate {xs = []} x = TZ x
@@ -116,7 +164,9 @@ Num a => Num (Tensor' xs a) where
 
 infixl 5 ><
 
-(><) : Num a => {xs : Vect n Nat} -> {ys : Vect m Nat}
+-- | Tensor product
+(><) : Num a
+    => {xs : Vect n Nat} -> {ys : Vect m Nat}
     -> Tensor xs a -> Tensor ys a -> Tensor (xs ++ ys) a
 (TZ x) >< b = (x*) <$> b
 (TS xs) >< b = TS $ (>< b) <$> xs
@@ -163,9 +213,10 @@ Concat : {x : Nat}
     -> Tensor (x :: xs) a -> Tensor (y :: xs) a -> Tensor ((x + y) :: xs) a
 Concat (TS xs) (TS ys) = TS (xs ++ ys)
 
-data Index2 : Vect n Nat -> Type where
-    Nil  : Index2 []
-    (::) : Fin (S m) -> Index2 ms -> Index2 (m :: ms)
+namespace I
+    data Index2 : Vect n Nat -> Type where
+        Nil  : Index2 []
+        (::) : Fin (S m) -> Index2 ms -> Index2 (m :: ms)
 
 takeSize : {ms : Vect n Nat} -> Index2 ms -> Vect n Nat
 takeSize {ms = []} Nil = []
@@ -224,25 +275,19 @@ vectorOuterProduct : Num a => Vect n a -> Vect m a -> Vect n (Vect m a)
 vectorOuterProduct [] b = []
 vectorOuterProduct (x :: xs) b = ((x*) <$> b) :: vectorOuterProduct xs b
 
---sumAxis : {rank : Nat} -> {xs : Vect rank Nat}
----> Fin rank ->
-sumAxisSize : (xs : Vect rank Nat) -> (i : Fin rank) -> {auto smaller: LTE 1 rank} -> Vect (rank - 1) Nat
-sumAxisSize {rank = (S Z)} (_ :: ms) FZ = ms
-sumAxisSize {rank = (S (S k))} (_ :: ms) FZ = ms
-sumAxisSize {rank = (S (S k))} (m :: ms) (FS i) = m :: rewrite sym $ minusZeroRight k in sumAxisSize ms i
+sumAxisSize : (i : Fin (S r)) -> (xs : Vect (S r) Nat) -> Vect r Nat
+sumAxisSize FZ (_ :: xs) = xs
+sumAxisSize (FS FZ) (x :: xs) = x :: sumAxisSize FZ xs
+sumAxisSize (FS (FS i)) (x :: xs) = x :: sumAxisSize (FS i) xs
 
---sumAxisSize : (xs : Vect rank Nat) -> (i : Fin rank) -> Vect rank Nat
---sumAxisSize (_ :: ms) FZ = 1 :: ms
---sumAxisSize (m :: ms) (FS i) = m :: sumAxisSize ms i
-
-sumAxis : {rank : Nat} -> {xs : Vect rank Nat}
+sumAxis : Monoid a
+    => {xs : Vect (S r) Nat}
+    -> (i : Fin (S r))
     -> Tensor xs a
-    -> (i : Fin rank)
-    -> {auto smaller: LTE 1 rank}
-    -> Tensor (sumAxisSize xs i) a
-sumAxis {rank = (S Z)} (TS xs) FZ = ?sumAxis_rhs_3
-sumAxis {rank = (S (S k))} t FZ = ?sumAxis_rhs_1
-sumAxis {rank = (S (S k))} t (FS x) = ?sumAxis_rhs_4
+    -> Tensor (sumAxisSize i xs) a
+sumAxis FZ (TS xs) = concat xs
+sumAxis (FS FZ) (TS xs) = TS (sumAxis FZ <$> xs)
+sumAxis (FS (FS i)) (TS xs) = TS (sumAxis (FS i) <$> xs)
 
 {-
 --allSliceIndexes : {rank : Nat} -> {xs : Vect rank Nat} -> Tensor xs a -> (i : Fin rank) -> {auto smaller: LTE 1 rank} -> Vect (index i xs) (Vect rank Nat)
@@ -294,21 +339,12 @@ matMul x y = let p = x >< y in ?matMul_rhs
 
 sliceVect : (n : Nat) -> (m : Nat) -> Vect (n + m + p) a -> Vect m a
 sliceVect n m {p} = rewrite sym $ plusAssociative n m p in take m . drop n
+-}
 
-
-namespace I
-    -- machinery for indexing arbitrary tensors
-    data Index : Vect n Nat -> Type where
-        Nil  : Index []
-        (::) : Fin m -> Index ms -> Index (m :: ms)
-
-index : Index ms -> Tensor ms a -> a
-index [] (TZ x) = x
-index (x :: xs) (TS ys) = index xs $ Vect.index x ys
-
-esindex : Vect n Char -> Vect n Nat -> (p : Nat ** Vect p (Char, Nat))
-esindex cs ns = let nubcs = nubBy (\a, b => fst a == fst b) $ zip cs ns
-                in nubcs
+--
+--esindex : Vect n Char -> Vect n Nat -> (p : Nat ** Vect p (Char, Nat))
+--esindex cs ns = let nubcs = nubBy (\a, b => fst a == fst b) $ zip cs ns
+--                in nubcs
 
 {-
 
@@ -322,5 +358,4 @@ esindex cs ns = let nubcs = nubBy (\a, b => fst a == fst b) $ zip cs ns
 --
 
 
--}
 -}

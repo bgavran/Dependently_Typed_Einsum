@@ -7,7 +7,7 @@ import Tensor
 import NumericImplementations
 --import Einsum
 
-%access export
+%access public export
 %default total
 
 
