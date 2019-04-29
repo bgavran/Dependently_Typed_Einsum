@@ -93,12 +93,16 @@ insertIntoDict : (cs : Vect rank Char) -> (xs : Vect rank Nat) -> Maybe (SortedM
 insertIntoDict cs xs = insertIntoDict' cs xs empty
 
 -- | Two ways this can fail:
--- a) there's a repeated tensor name
+-- a) there's a repeated dimension name
 -- b) new index names aren't in the map
-newTensorSize : SortedMap Char Nat -> Vect rank Char -> Maybe (Vect rank Nat)
-newTensorSize dct xs = case equating length (nub $ toList xs) (toList xs) of
+newTensorSize : Vect rank Char -> SortedMap Char Nat -> Maybe (Vect rank Nat)
+newTensorSize xs dct = case equating length (nub $ toList xs) (toList xs) of
     False => Nothing
     True => sequence $ flip lookup dct <$> xs
+
+
+--newTensor : Vect rank Char -> SortedMap Char Nat -> Maybe (Tensor xs a)
+--newTensor xs dct = let zz = newTensorSize xs dct in ?newTensor_rhs
 
 contractSpecificAxes : Monoid a
     => {c's : Vect rank Nat} -> {t's : Vect newRank Nat}
@@ -108,9 +112,10 @@ contractSpecificAxes : Monoid a
 contractSpecificAxes {c's} {t's = []} cs res t = TZ $ concat t
 contractSpecificAxes {c's} {t's = ys} cs res t =
     let tDct = insertIntoDict cs c's
-        mT's = tDct >>= (\dct => newTensorSize dct res)
+        mT's = tDct >>= newTensorSize res
         t's' = fromMaybe ys mT's
     in ?contractSpecificAxes_rhs_1
+
 
 -- | cs holds names for each axis in the accumulating tensor
 -- t is the accumulating tensor?

@@ -85,20 +85,6 @@ index (x :: xs) t = index xs $ index' x t
 --f : (xs : Vect (S n) Nat) -> (i : Fin (S n)) -> Fin (index i xs) -> Nat
 --f _ i x = (finToNat i) + (finToNat x)
 
-dropNthElement : Fin (S k) -> Vect (S k) Nat -> Vect k Nat
-dropNthElement FZ (_ :: xs) = xs
-dropNthElement {k = S l} (FS i) (x :: xs) = x :: dropNthElement i xs
-
-indexNthLevel : {xs : Vect (S r) Nat}
-    -> (e : Fin (S r)) -> Fin (index e xs) -> Tensor xs a -> Tensor (dropNthElement e xs) a
-indexNthLevel FZ i (TS ys) = index i ys
-indexNthLevel {r = S k} (FS later) i (TS ys) = TS $ indexNthLevel later i <$> ys
-
--- same as above except its using Idris' (Elem x xs) functionality
-indexNthLevel' : {xs : Vect (S r) Nat}
-    -> (e : Elem x xs) -> Fin x -> Tensor xs a -> Tensor (dropElem xs e) a
-indexNthLevel' Here i (TS ys) = index i ys
-indexNthLevel' {r = S k} (There later) i (TS ys) = TS $ indexNthLevel' later i <$> ys
 
 -- | [2, 3, 5] [1, 0, 2]
 --permuteAxes : {xs : Vect rank Nat}
@@ -154,6 +140,26 @@ Num a => Num (Tensor' xs a) where
     we have can't use a general Tensor xs a, but that we need to use Tensor' xs a
     -}
     fromInteger = replicate . fromInteger
+
+dropNthElement : Fin (S k) -> Vect (S k) Nat -> Vect k Nat
+dropNthElement FZ (_ :: xs) = xs
+dropNthElement {k = S l} (FS i) (x :: xs) = x :: dropNthElement i xs
+
+indexNthLevel : {xs : Vect (S r) Nat}
+    -> (e : Fin (S r)) -> Fin (index e xs) -> Tensor xs a -> Tensor (dropNthElement e xs) a
+indexNthLevel FZ i (TS ys) = index i ys
+indexNthLevel {r = S k} (FS later) i (TS ys) = TS $ indexNthLevel later i <$> ys
+
+-- same as above except its using Idris' (Elem x xs) functionality
+indexNthLevel' : {xs : Vect (S r) Nat}
+    -> (e : Elem x xs) -> Fin x -> Tensor xs a -> Tensor (dropElem xs e) a
+indexNthLevel' Here i (TS ys) = index i ys
+indexNthLevel' {r = S k} (There later) i (TS ys) = TS $ indexNthLevel' later i <$> ys
+
+
+contractSpecificAxis : Monoid a => {xs : Vect (S r) Nat}
+    -> (e : Fin (S r)) -> Tensor xs a -> Tensor (dropNthElement e xs) a
+contractSpecificAxis {xs} e ys = Foldable.concat $ (\i => indexNthLevel e i ys) <$> range {len=index e xs}
 
 infixl 5 ><
 
