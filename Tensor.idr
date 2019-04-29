@@ -82,30 +82,23 @@ index : Index ms -> Tensor' ms a -> a
 index [] (TZ x) = x
 index (x :: xs) t = index xs $ index' x t
 
-f : (xs : Vect (S n) Nat) -> (i : Fin (S n)) -> Fin (index i xs) -> Nat
-f _ i x = (finToNat i) + (finToNat x)
+--f : (xs : Vect (S n) Nat) -> (i : Fin (S n)) -> Fin (index i xs) -> Nat
+--f _ i x = (finToNat i) + (finToNat x)
 
-xs' : Vect 3 Nat
-xs' = [0, 1, 2]
-
-fff : Elem 1 [3,1,1]
-fff = There Here
-
-{-
-
-1 [2, 3, 5] (n \in {0, 1, 2})
-ist 1 [2, 3, 5]
-2 :: ist 0 [3, 5]
--}
---indexSliceType : Fin (S k) -> Vect (S k) Nat -> Vect k Nat
---indexSliceType FZ (_ :: xs) = xs
---indexSliceType (FS i) (x :: xs) = let xx = indexSliceType i xs
---                                  in ?indexSliceType_rhs_1
+dropNthElement : Fin (S k) -> Vect (S k) Nat -> Vect k Nat
+dropNthElement FZ (_ :: xs) = xs
+dropNthElement {k = S l} (FS i) (x :: xs) = x :: dropNthElement i xs
 
 indexNthLevel : {xs : Vect (S r) Nat}
+    -> (e : Fin (S r)) -> Fin (index e xs) -> Tensor xs a -> Tensor (dropNthElement e xs) a
+indexNthLevel FZ i (TS ys) = index i ys
+indexNthLevel {r = S k} (FS later) i (TS ys) = TS $ indexNthLevel later i <$> ys
+
+-- same as above except its using Idris' (Elem x xs) functionality
+indexNthLevel' : {xs : Vect (S r) Nat}
     -> (e : Elem x xs) -> Fin x -> Tensor xs a -> Tensor (dropElem xs e) a
-indexNthLevel Here i (TS ys) = index i ys
-indexNthLevel {r = S k} (There later) i (TS ys) = TS $ indexNthLevel later i <$> ys
+indexNthLevel' Here i (TS ys) = index i ys
+indexNthLevel' {r = S k} (There later) i (TS ys) = TS $ indexNthLevel' later i <$> ys
 
 -- | [2, 3, 5] [1, 0, 2]
 --permuteAxes : {xs : Vect rank Nat}

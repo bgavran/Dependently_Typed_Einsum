@@ -44,20 +44,19 @@ s = fromArray $ [ [0, 1, 2]
                 , [6, 7, 8]]
 
 
-{-
-t'' : TensorType [3, 4] Double
-t'' = toArray t
+--t'' : TensorType [3, 4] Double
+--t'' = toArray t
 
 
-w' : TensorType [2, 3, 4] Double
+w' : Array [2, 3, 4] Double
 w' = [[[1, 2, 3, 4],
-     [5, 6, 7, 8],
-     [9, 10, 11, 12]],
-     [[13, 14, 15, 16],
-     [17, 18, 19, 20],
-     [21, 22, 23, 24]]]
+       [5, 6, 7, 8],
+       [9, 10, 11, 12]],
+       [[13, 14, 15, 16],
+       [17, 18, 19, 20],
+       [21, 22, 23, 24]]]
 
-w : Tensor [2, 3, 4] Double
+w : Tensor' [2, 3, 4] Double
 w = fromArray w'
 
 {-
@@ -81,7 +80,5 @@ r2 = takeTensor [1, 4] $ dropTensor [1, 0] t
 
 r3 : Tensor [1, 4] Double
 r3 = takeTensor [1, 4] $ dropTensor [2, 0] t
-
--}
 
 -}
